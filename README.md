@@ -1,5 +1,5 @@
 # Lichess-Limbot
-Limbot is a chess bot for [Lichess](https://lichess.org/).
+Limbot is a chess bot for [Lichess](https://lichess.org/). The bot's goal is to keep the game almost equal for as long as possible to annoy the opponent (and hopefully make them quit chess).
 
 ## How to Use
 1. Install the [Tampermonkey](https://www.tampermonkey.net/) extension for your browser.
@@ -10,6 +10,10 @@ Limbot is a chess bot for [Lichess](https://lichess.org/).
 You can customize Limbot's behavior by modifying the script:
 - **`getMoveDelay`**: Adjusts the delay between moves
 - **`getTargetEvaluation`**: Sets the target evaluation for each move
+
+## Note
+- Never use Limbot on your Lichess account as you will certainly get banned.
+- Limbot may draw since the bot is designed to avoid getting a decisive advantage too early, or even lose on time if the move delay rolls are extremely unlucky.
 
 ## TODO
 - [ ] Implement human-like premoves and advanced time management
