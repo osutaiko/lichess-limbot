@@ -137,7 +137,6 @@ const initializeBot = async () => {
     console.log(`Limbot playing as: ${isBotWhite ? "white" : "black"}`);
 
     if (isBotWhite) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
         chessEngine.postMessage(`go depth ${ENGINE_DEPTH}`);
     }
 };
