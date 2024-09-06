@@ -1,5 +1,5 @@
 # Lichess-Limbot
-Limbot is a chess bot for [Lichess](https://lichess.org/). The bot's goal is to keep the game almost equal for as long as possible to annoy the opponent (and hopefully make them quit chess).
+Limbot is a chess bot for [Lichess](https://lichess.org/). The bot attempts to keep the game nearly equal for as long as possible, making the opponent feel like they have a chance to win, which can be extremely frustrating for them.
 
 ## How to Use
 1. Install the [Tampermonkey](https://www.tampermonkey.net/) extension for your browser.
