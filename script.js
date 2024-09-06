@@ -11,7 +11,6 @@
 // ==/UserScript==
 
 const ENGINE_DEPTH = 10;
-const WHITE_OPENING_MOVES = ["e2e4", "d2d4"];
 
 let chessEngine = window.STOCKFISH();
 let currentFen = "";
@@ -139,7 +138,7 @@ const initializeBot = async () => {
 
     if (isBotWhite) {
         await new Promise(resolve => setTimeout(resolve, 1000));
-        sendMove(WHITE_OPENING_MOVES[Math.floor(Math.random() * WHITE_OPENING_MOVES.length)]);
+        chessEngine.postMessage(`go depth ${ENGINE_DEPTH}`);
     }
 };
 
