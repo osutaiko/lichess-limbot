@@ -115,7 +115,7 @@ window.WebSocket = new Proxy(window.WebSocket, {
                 }
 
                 if (message.d?.fen && typeof message.v === "number") {
-                    currentFen = `${message.d.fen} ${isWhitesTurn ? "w" : "b"}`;
+                    currentFen = `${message.d.fen} ${isWhitesTurn ? "w KQkq" : "b KQkq"}`;
                     nextMoveNumber = Math.floor((message.v + 1) / 2);
 
                     chessEngine.postMessage(`position fen ${currentFen}`);
