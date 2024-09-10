@@ -10,18 +10,17 @@
 // @require      https://cdn.jsdelivr.net/gh/NuroC/stockfish.js/stockfish.js
 // ==/UserScript==
 
-const ENGINE_DEPTH = 8;
-
 let chessEngine = window.STOCKFISH();
-let currentFen = "";
 let currentEval = 0.0;
 let webSocketWrapper = null;
 let nextMoveNumber = 1;
+let castlingRights = 'KQkq';
+let movesList = [];
 let candidateMoves = [];
 let isBotWhite = null;
 
 // Set the engine to return multiple moves (MultiPV)
-chessEngine.postMessage("setoption name MultiPV value 6");
+chessEngine.postMessage("setoption name MultiPV value 8");
 
 const getMoveDelay = () => {
     // Return minimal delay on trivial moves
@@ -48,9 +47,41 @@ const getMoveDelay = () => {
     return baseDelay + randomizedDelay;
 }
 
+const getEngineDepth = () => {
+    if (nextMoveNumber <= 30) {
+        return 10;
+    } else {
+        return 8;
+    }
+}
+
 const getTargetEvaluation = () => {
     return Math.max(0, 0.00015 * (nextMoveNumber ** 3));
 }
+
+/** For some reason, Lichess handles UCI notation differently from the standard.
+ * For example, if White castles kingside, the correct notation to pass to Stockfish would be 'e1g1',
+ * but Lichess sends 'e1h1' instead. (https://lichess.org/forum/lichess-feedback/lichess-castling-bug)
+ */
+const processCastlingMove = (move) => {
+    const castlingConversions = {
+        "e1h1": "e1g1",
+        "e1a1": "e1c1",
+        "e8h8": "e8g8",
+        "e8a8": "e8c8"
+    };
+
+    if (castlingConversions[move]) {
+        if (move === "e1" || move === "h1") castlingRights = castlingRights.replace("K", "");
+        if (move === "e1" || move === "a1") castlingRights = castlingRights.replace("Q", "");
+        if (move === "e8" || move === "h8") castlingRights = castlingRights.replace("k", "");
+        if (move === "e8" || move === "a8") castlingRights = castlingRights.replace("q", "");
+
+        return castlingConversions[move];
+    }
+
+    return move;
+};
 
 const sendMove = (move) => {
     const moveDelay = getMoveDelay();
@@ -72,7 +103,7 @@ const sendMove = (move) => {
 };
 
 chessEngine.onmessage = function(event) {
-    if (event.includes(`info depth ${ENGINE_DEPTH}`)) {
+    if (event.includes(`info depth ${getEngineDepth()}`)) {
         const moveMatch = event.match(/\spv\s+(\S+)/);
         const evalMatch = event.match(/score cp (-?\d+)/);
 
@@ -100,6 +131,8 @@ chessEngine.onmessage = function(event) {
         }
 
         sendMove(closestMove);
+        movesList.push(closestMove);
+
         candidateMoves = [];
     }
 };
@@ -118,12 +151,14 @@ window.WebSocket = new Proxy(window.WebSocket, {
                     return;
                 }
 
-                if (message.d?.fen && typeof message.v === "number") {
-                    currentFen = `${message.d.fen} ${isWhitesTurn ? "w" : "b"}`;
-                    nextMoveNumber = Math.floor((message.v + 2) / 2);
+                if (message.t === "move") {
+                    nextMoveNumber = Math.floor((message.d.ply + 2) / 2);
 
-                    chessEngine.postMessage(`position fen ${currentFen}`);
-                    chessEngine.postMessage(`go depth ${ENGINE_DEPTH}`);
+                    const processedMove = processCastlingMove(message.d.uci);
+                    movesList.push(processedMove);
+
+                    chessEngine.postMessage(`position startpos moves ${movesList.join(' ')}`);
+                    chessEngine.postMessage(`go depth ${getEngineDepth()}`);
                 }
             } catch (error) {
                 console.error("Error processing WebSocket message:", error);
@@ -135,13 +170,14 @@ window.WebSocket = new Proxy(window.WebSocket, {
 });
 
 const initializeBot = async () => {
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, 500));
     // Get color information from innerHTML class
     isBotWhite = document.documentElement.innerHTML.includes("orientation-white");
     console.log(`Limbot playing as: ${isBotWhite ? "white" : "black"}`);
 
+    // If bot is white, don't wait for "move" message to start the engine
     if (isBotWhite) {
-        chessEngine.postMessage(`go depth ${ENGINE_DEPTH}`);
+        chessEngine.postMessage(`go depth ${getEngineDepth()}`);
     }
 };
 
