@@ -10,10 +10,12 @@
 // @require      https://cdn.jsdelivr.net/gh/NuroC/stockfish.js/stockfish.js
 // ==/UserScript==
 
+const AUTO_NEW_GAME = true;
+
 let chessEngine = window.STOCKFISH();
-let currentEval = 0.0;
 let webSocketWrapper = null;
 let nextMoveNumber = 1;
+let currentEval = 0.0;
 let castlingRights = "KQkq";
 let movesList = [];
 let candidateMoves = [];
@@ -23,28 +25,30 @@ let isBotWhite = null;
 chessEngine.postMessage("setoption name MultiPV value 8");
 
 const getMoveDelay = () => {
-  // Return minimal delay on trivial moves
-  if (candidateMoves.length <= 2) {
+  // Return minimal delay on trivial moves (very few move options, or recaptures)
+  if (
+    candidateMoves.length <= 2 ||
+    (movesList.length >= 2 && movesList[movesList.length - 2].substring(2, 4) === movesList[movesList.length - 1].substring(2, 4))
+  ) {
     return 0;
   }
 
-  const baseDelay = 300;
-
-  if (nextMoveNumber <= 5) {
-    return baseDelay;
-  } else if (nextMoveNumber > 35) {
-    return 0;
-  }
+  const baseDelay = 200;
 
   // Rate parameter of exponential distribution (inverse of mean delay)
-  const lambda = 1 / 700;
+  const lambda = 1 / 750;
   let randomizedDelay = -Math.log(1 - Math.random()) / lambda;
 
-  if (Math.random() < 0.1) {
-    randomizedDelay += 1000;
+  if (nextMoveNumber <= 12) {
+    return baseDelay + randomizedDelay * 0.2;
+  } else if (nextMoveNumber <= 35) {
+    if (Math.random() < 0.1) {
+      randomizedDelay += 1000;
+    }
+    return baseDelay + randomizedDelay;
+  } else {
+    return 0;
   }
-
-  return baseDelay + randomizedDelay;
 }
 
 const getEngineDepth = () => {
@@ -56,8 +60,20 @@ const getEngineDepth = () => {
 }
 
 const getTargetEvaluation = () => {
-  return Math.max(0, 0.00015 * (nextMoveNumber ** 3));
+  return Math.max(0, 0.000075 * (nextMoveNumber ** 3)) + 0.5;
 }
+
+const initializeBot = async () => {
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  // Get color information from innerHTML class
+  isBotWhite = document.documentElement.innerHTML.includes("orientation-white");
+  console.log(`Limbot playing as: ${isBotWhite ? "white" : "black"}`);
+
+  // If bot is white, don't wait for "move" message to start the engine
+  if (isBotWhite) {
+    chessEngine.postMessage(`go depth ${getEngineDepth()}`);
+  }
+};
 
 /** For some reason, Lichess handles UCI notation differently from the standard.
  * For example, if White castles kingside, the correct notation to pass to Stockfish would be "e1g1",
@@ -144,8 +160,8 @@ chessEngine.onmessage = function(event) {
       }
     });
 
-    sendMove(closestMove);
     movesList.push(closestMove);
+    sendMove(closestMove);
 
     candidateMoves = [];
   }
@@ -173,6 +189,13 @@ window.WebSocket = new Proxy(window.WebSocket, {
 
           chessEngine.postMessage(`position startpos moves ${movesList.join(" ")}`);
           chessEngine.postMessage(`go depth ${getEngineDepth()}`);
+        } else if (message.t === "endData" && AUTO_NEW_GAME) {
+          setTimeout(() => {
+            const currentUrl = window.location.href;
+            const truncatedGameId = currentUrl.split('/').pop().substring(0, 8);
+            const newOpponentUrl = `https://lichess.org/?hook_like=${truncatedGameId}`;
+            window.open(newOpponentUrl, '_blank');
+          }, 5000);
         }
       } catch (error) {
         console.error("Error processing WebSocket message:", error);
@@ -182,17 +205,5 @@ window.WebSocket = new Proxy(window.WebSocket, {
     return wsInstance;
   }
 });
-
-const initializeBot = async () => {
-  await new Promise((resolve) => setTimeout(resolve, 500));
-  // Get color information from innerHTML class
-  isBotWhite = document.documentElement.innerHTML.includes("orientation-white");
-  console.log(`Limbot playing as: ${isBotWhite ? "white" : "black"}`);
-
-  // If bot is white, don't wait for "move" message to start the engine
-  if (isBotWhite) {
-    chessEngine.postMessage(`go depth ${getEngineDepth()}`);
-  }
-};
 
 initializeBot();
