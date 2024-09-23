@@ -25,6 +25,47 @@ let movesList = [];
 let candidateMoves = [];
 let isBotWhite = null;
 
+// UI
+const botPanel = document.createElement('div');
+botPanel.id = 'limbot-panel';
+botPanel.style.position = 'fixed';
+botPanel.style.top = '10px';
+botPanel.style.right = '10px';
+botPanel.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+botPanel.style.color = 'white';
+botPanel.style.padding = '10px';
+botPanel.style.borderRadius = '5px';
+botPanel.style.zIndex = 1000;
+document.body.appendChild(botPanel);
+
+let logScore = "0/0";
+
+const updateUIPanel = () => {
+  botPanel.innerHTML = `
+    <strong>Limbot</strong><br>
+    ${isBotWhite ? currentEval.toFixed(2) : (-currentEval).toFixed(2)}
+    (Target ${isBotWhite ? getTargetEvaluation().toFixed(2) : (-getTargetEvaluation()).toFixed(2)})<br>
+    Limbot Score: ${logScore}
+  `;
+};
+
+const updateScoreFromGameLog = () => {
+  const gameLog = JSON.parse(localStorage.getItem('botGameLog')) || [];
+  let score = 0, totalGames = gameLog.length;
+
+  gameLog.forEach(game => {
+    if (game.result.winner === (game.botColor === "white" ? "white" : "black")) {
+      score += 1;
+    } else if (game.result.winner === null) {
+      score += 0.5;
+    }
+  });
+
+  // Tournament-style score (e.g., 7.5/8) assuming no draws
+  logScore = `${score}/${totalGames}`;
+  updateUIPanel();
+};
+
 // Set the engine to return multiple moves (MultiPV)
 chessEngine.postMessage("setoption name MultiPV value 8");
 
@@ -78,6 +119,9 @@ const initializeBot = async () => {
   if (isBotWhite) {
     chessEngine.postMessage(`go depth ${getEngineDepth()}`);
   }
+
+  updateScoreFromGameLog();
+  updateUIPanel();
 };
 
 /** For some reason, Lichess handles UCI notation differently from the standard.
@@ -174,6 +218,8 @@ chessEngine.onmessage = function(event) {
     movesList.push(closestMove);
     sendMove(closestMove);
     candidateMoves = [];
+
+    updateUIPanel();
   }
 };
 
@@ -221,6 +267,7 @@ window.WebSocket = new Proxy(window.WebSocket, {
             gameLog.push(gameLogEntry);
             localStorage.setItem("botGameLog", JSON.stringify(gameLog));
             console.log("Game log updated:", gameLogEntry)
+            updateScoreFromGameLog();
           } catch (error) {
             console.error("Error with localStorage:", error);
           }
