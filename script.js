@@ -10,7 +10,11 @@
 // @require      https://cdn.jsdelivr.net/gh/NuroC/stockfish.js/stockfish.js
 // ==/UserScript==
 
-const AUTO_NEW_GAME = true;
+// Options for auto-seeking new game: null (don't restart), "new tab" (open new tab), "current tab" (restart in current tab)
+const NEW_GAME_OPTION = null;
+
+// Delay between games
+const NEW_GAME_DELAY = 5000;
 
 let chessEngine = window.STOCKFISH();
 let webSocketWrapper = null;
@@ -59,6 +63,7 @@ const getEngineDepth = () => {
   }
 }
 
+//Target evaluation for the bot (positive if bot is ahead)
 const getTargetEvaluation = () => {
   return Math.max(0, 0.000075 * (nextMoveNumber ** 3)) + 0.5;
 }
@@ -97,7 +102,6 @@ const processCastlingMove = (move) => {
     } else if (move === "e8" || move === "a8") {
       castlingRights = castlingRights.replace("q", "")
     };
-
     return castlingConversions[move];
   }
 
@@ -133,10 +137,17 @@ chessEngine.onmessage = function(event) {
   if (event.includes(`info depth ${getEngineDepth()}`)) {
     const moveMatch = event.match(/\spv\s+(\S+)/);
     const evalMatch = event.match(/score cp (-?\d+)/);
+    const mateInMatch = event.match(/score mate (-?\d+)/);
 
-    if (moveMatch && evalMatch) {
+    if (moveMatch && (evalMatch || mateInMatch)) {
       const candidateMove = moveMatch[1];
-      const candidateMoveEval = evalMatch[1] / 100;
+      let candidateMoveEval = 0;
+
+      if (evalMatch) {
+        candidateMoveEval = evalMatch[1] / 100;
+      } else if (mateInMatch) {
+        candidateMoveEval = mateInMatch[1] > 0 ? 10000 : -10000
+      }
 
       candidateMoves.push({
         move: candidateMove,
@@ -148,7 +159,7 @@ chessEngine.onmessage = function(event) {
   // Triggers on computation end
   if (event.includes("bestmove")) {
     let closestMove = null;
-    let minEvalDifference = Infinity;
+    let minEvalDifference = 100000000;
     const targetEvaluation = getTargetEvaluation();
 
     candidateMoves.forEach((candidate) => {
@@ -162,7 +173,6 @@ chessEngine.onmessage = function(event) {
 
     movesList.push(closestMove);
     sendMove(closestMove);
-
     candidateMoves = [];
   }
 };
@@ -177,25 +187,55 @@ window.WebSocket = new Proxy(window.WebSocket, {
         const message = JSON.parse(event.data);
         const isWhitesTurn = message.v % 2 === 0;
 
-        if (isBotWhite ^ isWhitesTurn) {
-          return;
-        }
-
         if (message.t === "move") {
-          nextMoveNumber = Math.floor((message.d.ply + 2) / 2);
+          if (isBotWhite ^ isWhitesTurn) {
+            return;
+          }
 
+          nextMoveNumber = Math.floor((message.d.ply + 2) / 2);
           const processedMove = processCastlingMove(message.d.uci);
           movesList.push(processedMove);
 
           chessEngine.postMessage(`position startpos moves ${movesList.join(" ")}`);
           chessEngine.postMessage(`go depth ${getEngineDepth()}`);
-        } else if (message.t === "endData" && AUTO_NEW_GAME) {
-          setTimeout(() => {
-            const currentUrl = window.location.href;
-            const truncatedGameId = currentUrl.split('/').pop().substring(0, 8);
-            const newOpponentUrl = `https://lichess.org/?hook_like=${truncatedGameId}`;
-            window.open(newOpponentUrl, '_blank');
-          }, 5000);
+        } else if (message.t === "endData") {
+          const currentUrl = window.location.href;
+          const truncatedGameId = currentUrl.split('/').pop().substring(0, 8);
+
+          const gameLogEntry = {
+            gameId: truncatedGameId,
+            botColor: isBotWhite ? "white" : "black",
+            time: new Date().toISOString(),
+            result: {
+              winner: message.d.winner,
+              endBy: message.d.status.name
+            },
+            clockOnEnd: {
+              white: message.d.clock.wc,
+              black: message.d.clock.bc
+            }
+          };
+
+          try {
+            let gameLog = JSON.parse(localStorage.getItem("botGameLog")) || [];
+            gameLog.push(gameLogEntry);
+            localStorage.setItem("botGameLog", JSON.stringify(gameLog));
+            console.log("Game log updated:", gameLogEntry)
+          } catch (error) {
+            console.error("Error with localStorage:", error);
+          }
+
+          if (NEW_GAME_OPTION) {
+            console.log(`Starting a new game in ${NEW_GAME_DELAY / 1000} seconds...`);
+            setTimeout(() => {
+              const newOpponentUrl = `https://lichess.org/?hook_like=${truncatedGameId}`;
+              if (NEW_GAME_OPTION === "new tab") {
+                window.open(newOpponentUrl, '_blank');
+              } else if (NEW_GAME_OPTION === "current tab") {
+                window.location.href = newOpponentUrl;
+              }
+            }, NEW_GAME_DELAY);
+          }
         }
       } catch (error) {
         console.error("Error processing WebSocket message:", error);
