@@ -13,10 +13,9 @@ You can customize Limbot's behavior by modifying the script:
 
 ## Note
 - Never use Limbot on your Lichess account as you will certainly get banned.
-- Limbot may draw since the bot is designed to avoid getting a decisive advantage too early, or even lose on time if the move delay rolls are extremely unlucky.
+- Limbot may draw since the bot is designed to avoid getting a decisive advantage too early, or even flag if the move delay rolls are extremely unlucky.
 
 ## TODO
 - [ ] Implement human-like premoves and advanced time management
 - [ ] Adjust move times for different time controls besides bullet
-- [ ] Enable auto-finding of new games or auto-rematch
 - [ ] Add a "Give 15 seconds" feature for maximum annoyance
